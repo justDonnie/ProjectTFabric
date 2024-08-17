@@ -4,6 +4,8 @@ import jakarta.annotation.PostConstruct;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +13,7 @@ import tisobay.projecttiso.dto.request.AuthRequest;
 import tisobay.projecttiso.dto.response.AuthResponse;
 import tisobay.projecttiso.entities.User;
 import tisobay.projecttiso.enums.Role;
+import tisobay.projecttiso.exceptions.AccessDeniedException;
 import tisobay.projecttiso.exceptions.AlreadyExistException;
 import tisobay.projecttiso.exceptions.BadCredentialException;
 import tisobay.projecttiso.exceptions.NotFoundException;
@@ -41,12 +44,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         log.info("User's email: " + user.getEmail());
 
         log.info("Checking password...");
-        if (!passwordEncoder.matches(user.getPassword(), authRequest.getPassword())) {
+        if (!passwordEncoder.matches(authRequest.getPassword(),user.getPassword())) {
             log.info("Wrong password !!!");
             throw new BadCredentialException("Wrong password!!!");
         }
-
-        log.info("Token for sign up method is generating...");
+        log.info("Token for sign in method is generating...");
         String token = jwtService.generateToken(user);
         return AuthResponse.builder()
                 .token(token)
@@ -76,6 +78,22 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .token(token)
                 .email(user.getEmail())
                 .build();
+    }
+
+    @Override
+    public void checkAuth(Role role) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AccessDeniedException("Требуется аутентификация для выполнения этого действия.");
+        }
+        String email = authentication.getName();
+        User user = userRepository.getUserByEmail(email).orElseThrow(() -> {
+            log.error("Пользователь с email не найден: " + email);
+            return new NotFoundException("Пользователь не найден.");
+        });
+        if (!user.getRole().equals(Role.ADMIN)) {
+            throw new AccessDeniedException("Только администратор может выполнять это действие.");
+        }
     }
 
     public void checkUser(String email) {

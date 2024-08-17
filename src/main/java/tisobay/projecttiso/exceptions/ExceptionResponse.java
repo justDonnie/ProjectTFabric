@@ -10,7 +10,6 @@ import org.springframework.http.HttpStatus;
 @Setter
 @AllArgsConstructor
 @Builder
-
 public class ExceptionResponse {
     private HttpStatus httpStatus;
     private String exceptionClassName;
